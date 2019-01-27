@@ -2,6 +2,7 @@ from flask import Flask, request, render_template, redirect
 from dtelbot import Bot, inputmedia as inmed, reply_markup as repl, inlinequeryresult as iqr
 from parser import Book
 import re
+import os
 
 BOT_ID = os.environ['BOT_ID']
 
