@@ -6,7 +6,7 @@ from PIL import Image
 import base64
 from fb2book import FB2book
 
-parse_page_info = re.compile(r'\<h1\>(?P<title>.+)\<\/h1\>\n\<div\sid\=\'Info\'[\s\S]+\<img\ssrc\=\"(?P<img>\/i\/book\/[a-z0-9\/\.]+)\"[\s\S]+(?P<description>\<p\>\<strong\>Автор\:\<\/strong\>\s\<em\>\<a\shref\=.+)\n')
+parse_page_info = re.compile(r'\<h1\>(?P<title>.+)\<\/h1\>\n\<div\sid\=\'Info\'[\s\S]+\<img\ssrc\=\"(?P<img>\/i\/book\/[a-z0-9\/\.]+)\"')
 
 parse_chapters = re.compile(r'\<tr\sid\=\'(c\_|vol\_title\_)(?P<index>[0-9]+)\'[^>]*class\=\'(?P<type>chapter\_row|volume_helper)\s*(?P<volume_to>[^\' ]*)\s?\'\>\<td(\scolspan\=\'14\'\sonclick\=\'\$\(\".(?P<volume>volume\_[0-9a-z]+)\"\)[^<]+\<strong\>(?P<title>[^<]+)|\>\<\/td\>\<td\sclass\=\'t\'\>\<a\shref\=\'(?P<url>[^\']+)\'\>(?P<name>[^<]+)\<\/a\>)')
 
@@ -55,7 +55,6 @@ class Book:
         self.url = self.base_url + '/book/{}'.format(id_)
         self.title = None #Название
         self.img_url = None #Cсылка на картинку
-        self.description = None #Описание
         self.chapters = [] #Главы
         self.rows = []
         self.img_urls = []
@@ -69,7 +68,6 @@ class Book:
         if info:
             self.title = info['title']
             self.img_url = info['img']
-            self.description = info['description']
             count = 0
             for one in parse_chapters.finditer(page): #Parse rows from document
                 self.rows.append(Row(one, index=count)) #Create Row and save to list
@@ -184,7 +182,7 @@ class Session:
 
 if __name__ == '__main__':
     session = None #Session('login', 'password')
-    book_id = 24
+    book_id = 341
     book = Book(book_id, session)
     print(book.title)
     book.format_to_fb2('bookname.fb2')
