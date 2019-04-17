@@ -23,7 +23,7 @@ class FB2book:
     {}
     {}
 </section>
-'''.format(chapter.name, chapter.content if chapter.content else '', '\n'.join([self.format_chapter(ch) for ch in chapter.chapters]))
+'''.format(chapter.name, chapter.content, '\n'.join([self.format_chapter(ch) for ch in chapter.chapters]))
     
     def add_chapter(self, chapter):
         self.chapters.append(self.format_chapter(chapter))
@@ -32,8 +32,7 @@ class FB2book:
         self.pictures.append('<binary id="{}" content-type="{}">{}</binary>'.format(pic.name, pic.type, pic.content))
     
     def result(self):
-        return '''
-<?xml version="1.0" encoding="UTF-8"?>
+        return '''<?xml version="1.0" encoding="UTF-8"?>
 <FictionBook xmlns="http://www.gribuser.ru/xml/fictionbook/2.0" xmlns:l="http://www.w3.org/1999/xlink">
 	<description>
 		<title-info>
@@ -41,7 +40,7 @@ class FB2book:
 				{}
 			</genre>
 			<author>
-                                {}
+                {}
 			</author>
 			<book-title>
 				{}
@@ -69,7 +68,7 @@ class FB2book:
     ', '.join(self.tags),
     '\n'.join(self.authors),
     self.title,
-    '<coverpage><image l:href="#{}" /></coverpage>'.format(self.thumbnail) if self.thumbnail else '',
+    '<coverpage><image l:href="{}" /></coverpage>'.format(self.thumbnail) if self.thumbnail else '',
     self.author,
     self.publisher,
     '\n'.join(self.chapters),

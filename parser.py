@@ -4,60 +4,121 @@ import aiohttp
 from io import BytesIO
 from PIL import Image
 import base64
+import hashlib
+import lxml.html
+from lxml.etree import tostring
+from lxml.html.clean import Cleaner
+
 from fb2book import FB2book
+
+base_url = 'https://tl.rulate.ru'
 
 parse_page_info = re.compile(r'\<h1\>(?P<title>.+)\<\/h1\>\n\<div\sid\=\'Info\'[\s\S]+\<img\ssrc\=\"(?P<img>\/i\/book\/[a-z0-9\/\.]+)\"')
 
 parse_chapters = re.compile(r'\<tr\sid\=\'(c\_|vol\_title\_)(?P<index>[0-9]+)\'[^>]*class\=\'(?P<type>chapter\_row|volume_helper)\s*(?P<volume_to>[^\' ]*)\s?\'\>\<td(\scolspan\=\'14\'\sonclick\=\'\$\(\".(?P<volume>volume\_[0-9a-z]+)\"\)[^<]+\<strong\>(?P<title>[^<]+)|\>\<\/td\>\<td\sclass\=\'t\'\>\<a\shref\=\'(?P<url>[^\']+)\'\>(?P<name>[^<]+)\<\/a\>)')
 
-parse_chapter_content = re.compile(r'\<div\sid\=\"readpage\"\>([\S\s]+)\<\/div\>\n\<div\sstyle\=\"text\-align\:\scenter\;\smargin\-bottom\:\s20px\;\"')
-
-img_pattern = re.compile(r'\<img\ssrc\=\"([^\"]+)\"\s*\/\>')
-
 class Picture:
-    def __init__(self, name, type_, content):
-        self.name = name
-        self.type = type_
-        self.content = content
+    def __init__(self, url, row):
+        self.url = url
+        self.rows = [row] if row is not None else []
+        self.type = 'image/jpeg'
+        self.binary = None
+        self.hash = None
+        
+    @property
+    def name(self):
+        return self.url.replace('/', '').replace('.', '_')
+    
+    @property
+    def content(self):
+        buffer = BytesIO(self.binary) #Load picture from response to buffer
+        img = Image.open(buffer) #Load from buffer
+        new_img = img.convert('RGB')#To ignore error with RGBA
+        new_img.save(buffer, format='JPEG') #Format picture to .jpg
+        return base64.b64encode(buffer.getvalue()).decode() #Encode to base64 and return as string
+    
+    async def load_picture(self, session):
+        async with session.get(base_url + self.url if self.url[0] == '/' else self.url) as resp:
+            self.check_content(await resp.read())
+    
+    def check_content(self, content):
+        self.hash = hashlib.md5(content).hexdigest()
+        self.binary = content
+    
+    def replace(self, pic):
+        for row in pic.rows:
+            self.rows.append(row)
+            row.set('l:href', self.name)
+    
+    def __eq__(self, other):
+        return self.url == other.url or (self.hash and self.hash == other.hash)
 
-class Row:
-    def __init__(self, result, index=0):
+class Chapter:
+    def __init__(self, result):
         self.is_chapter = result['type'] == 'chapter_row'
         self.url = result['url'] if self.is_chapter else None
         self.name = result['name'] if self.is_chapter else result['title']
-        self.index = index
         self.volume = result['volume'] if not self.is_chapter else None
         self.volume_to = result['volume_to'] if self.is_chapter else None
+        self.rows = []
+        self.chapters = []
+        self.pictures = []
+        self.urls = []
 
-    def __repr__(self):
-        return '{} № {}\nName: {}\nUrl: {}\nVolume_to: {}\nVolume: {}'.format(
-            'Chapter' if self.is_chapter else 'Volume', self.index, self.name, self.url, self.volume_to, self.volume)
-
-class Chapter:
-    def __init__(self, name, content=None, volume=None, volume_to=None, index=0):
-        self.name = name #Название главы или тома
-        self.content = content #Содержание
-        self.chapters = [] #Для подглав
-        self.volume = volume
-        self.volume_to = volume_to
-        self.index = index
-
+    @property
+    def content(self):
+        return ''.join(map(lambda row: tostring(row, encoding='unicode'), self.rows))
+    
     def append(self, chapter):
         self.chapters.append(chapter)
 
+    async def load_chapter(self, session):
+        if self.is_chapter:
+            async with session.get(base_url + self.url) as resp:
+                self.check_content(await resp.text())
+    
+    def change_link(self, row, link):
+        row.set('l:href', link)
+    
+    def check(self, row):
+        if row.tag == 'img':
+            url = row.attrib.pop('src')
+            if url:
+                pic = Picture(url, row)
+                self.pictures.append(pic)
+                row.tag = 'image'
+                self.change_link(row, pic.name)
+        elif row.tag == 'a':
+            url = row.attrib.pop('src')
+            if not url:
+                row.tag = 'p'
+            else:
+                self.change_link(row, url)
+        self.rows.append(row)
+        
+    def check_content(self, content): #Оптимизация под книгу
+        page = lxml.html.fromstring(content).xpath('//div[@class = "content-text"]')
+        if page:
+            cleaner = Cleaner(
+                page_structure=False,
+                style=True,
+                allow_tags=['p', 'a', 'img', 'td', 'tr', 'strong', 'br'],
+                remove_unknown_tags=False
+            )
+            for row in cleaner.clean_html(page[0]):
+                self.check(row)
+
     def __repr__(self):
-        return '\n{}: {}'.format(self.name, self.chapters if self.chapters else '')
+        return '> {}\nName: {}\nUrl: {}\nVolume_to: {}\nVolume: {}'.format(
+            'Chapter' if self.is_chapter else 'Volume', self.name, self.url, self.volume_to, self.volume)
 
 class Book:
     def __init__(self, id_, session=None):
         self.id = id_
-        self.base_url = 'https://tl.rulate.ru'
-        self.url = self.base_url + '/book/{}'.format(id_)
+        self.url = base_url + '/book/{}'.format(id_)
         self.title = None #Название
-        self.img_url = None #Cсылка на картинку
+        self.thumbnail = None #Cсылка на картинку
         self.chapters = [] #Главы
-        self.rows = []
-        self.img_urls = []
         self.pictures = []
         self.session = session
         self.load_main()
@@ -67,11 +128,9 @@ class Book:
         info = parse_page_info.search(page) #Find all info on page
         if info:
             self.title = info['title']
-            self.img_url = info['img']
-            count = 0
-            for one in parse_chapters.finditer(page): #Parse rows from document
-                self.rows.append(Row(one, index=count)) #Create Row and save to list
-                count += 1
+            self.thumbnail = Picture(info['img'], None)
+            for row in parse_chapters.finditer(page): #Parse rows from document
+                self.add_to_chapters(Chapter(row)) #Create Row and save to list
             
     def add_to_chapters(self, chapter_):
         if chapter_.volume_to: #Is connected
@@ -82,59 +141,58 @@ class Book:
         self.chapters.append(chapter_) #Add to main
             
     def load_chapters(self):
-        async def fetch_get(row, session):
-            if row.is_chapter:
-                async with session.get(self.base_url + row.url) as resp:
-                    return Chapter(row.name, self.check_chapter_content(await resp.text()), volume_to=row.volume_to, index=row.index)
-            else:
-                return Chapter(row.name, volume=row.volume, index=row.index)
         async def get_pages(list_):
             async with aiohttp.ClientSession(headers=self.session.headers if self.session else {}, cookies=self.session.cookies if self.session else {}) as session:
-                return await asyncio.gather(*[asyncio.ensure_future(fetch_get(one, session)) for one in list_])
-        for chapter in sorted(asyncio.new_event_loop().run_until_complete(get_pages(self.rows)), key=lambda c: c.index):
-            self.add_to_chapters(chapter)
+                return await asyncio.gather(*[asyncio.ensure_future(one.load_chapter(session)) for one in list_])
+        chapters = []
+        for chapter in self.chapters:
+            if chapter.is_chapter:
+                chapters.append(chapter)
+            else:
+                for ch in chapter.chapters:
+                    chapters.append(ch)
+        asyncio.new_event_loop().run_until_complete(get_pages(chapters))
 
-    def from_url_to_filename(self, url):
-        return url.replace('/', '')
-            
-    def check_picture_in_content(self, content):
-        for url in img_pattern.finditer(content): #Finding <img src="...." />
-            if not url[1] in self.img_urls: #If new picture (some pictures can repeat)
-                self.img_urls.append(url[1])
-            content = content.replace(url[0], '<image l:href=\"#{}\"/>'.format(self.from_url_to_filename(url[1]))) #Replace to fb2 type
-        return content
-
-    def convert_pic_to_jpg_n_encode_to_base64(self, pic_content):
-        buffer = BytesIO(pic_content) #Load picture from response to buffer
-        img = Image.open(buffer) #Load from buffer
-        new_img = img.convert('RGB')#To ignore error with RGBA
-        new_img.save(buffer, format='JPEG') #Format picture to .jpg
-        return base64.b64encode(buffer.getvalue()).decode() #Encode to base64 and return as string
-
-    def check_chapter_content(self, page): #Fixing errors in text
-        content = parse_chapter_content.search(page) if page else None
-        if content:
-            content = content[1]
-            content = ''.join([part.split('<!--')[0] for part in content.split('-->')])
-            content = self.check_picture_in_content(content)
-        return content
+    def the_same_picture(self, pic):
+        for picture in self.pictures:
+            if pic == picture:
+                return picture
     
+    def check_pictures(self, pics):
+        for pic in pics:
+            picture = self.the_same_picture(pic)
+            if picture:
+                picture.replace(pic)
+            else:
+                self.pictures.append(pic)
+    
+    def get_pictures_from_chapters(self):
+        self.pictures = [self.thumbnail]
+        for chapter in self.chapters:
+            if chapter.is_chapter:
+                self.check_pictures(chapter.pictures)
+            else:
+                for ch in chapter.chapters:
+                    self.check_pictures(ch.pictures)
+            
+    def check_pictures_after_download(self):
+        pictures, self.pictures = self.pictures, [self.thumbnail]
+        self.check_pictures(pictures)
+        
     def load_pictures(self):
-        async def fetch_get(url, session):
-            async with session.get(self.base_url + url) as resp:
-                return Picture(self.from_url_to_filename(url), 'image/jpeg', self.convert_pic_to_jpg_n_encode_to_base64(await resp.read())) #Encode to base64
+        self.get_pictures_from_chapters()
         async def get_pics(list_):
             async with aiohttp.ClientSession() as session:
-                return await asyncio.gather(*[asyncio.ensure_future(fetch_get(one, session)) for one in list_])
-        self.img_urls.append(self.img_url) #Add to all_pictures thumbnail_url
-        self.pictures = asyncio.new_event_loop().run_until_complete(get_pics(self.img_urls))
+                return await asyncio.gather(*[asyncio.ensure_future(one.load_picture(session)) for one in list_])
+        asyncio.new_event_loop().run_until_complete(get_pics(self.pictures))
+        self.check_pictures_after_download()
 
     async def auth(self, session):
-        async with session.post(self.base_url, data={'login[login]': self.session.login, 'login[pass]': self.session.password}) as resp:
+        async with session.post(base_url, data={'login[login]': self.session.login, 'login[pass]': self.session.password}) as resp:
             return await resp.text()
 
     async def approve_book(self, session):
-        async with session.post(self.base_url + '/mature?path={}'.format(self.id), data={'path': '/book/{}'.format(self.id), 'ok': 'Да'}) as resp:
+        async with session.post(base_url + '/mature?path={}'.format(self.id), data={'path': '/book/{}'.format(self.id), 'ok': 'Да'}) as resp:
             return await resp.text()
 
     def get(self, url):
@@ -151,7 +209,9 @@ class Book:
         return asyncio.new_event_loop().run_until_complete(gget(url))
 
     def fb2_serialize(self):
-        book = FB2book(self.title, self.url, self.from_url_to_filename(self.img_url))
+        self.load_chapters()
+        self.load_pictures()
+        book = FB2book(self.title, self.url, self.thumbnail.name)
         for chapter in self.chapters:
             book.add_chapter(chapter)
         for pic in self.pictures:
@@ -159,8 +219,6 @@ class Book:
         return book.result()
 
     def format_to_fb2(self, filename=None, io=False):
-        self.load_chapters()
-        self.load_pictures()
         fb2_result = self.fb2_serialize()
         if filename:
             with open(filename, 'wb') as f:
@@ -179,11 +237,3 @@ class Session:
 
     def set_cookies(self, session):
         self.cookies = {cookie.key:cookie.value for cookie in session.cookie_jar}
-
-if __name__ == '__main__':
-    session = None #Session('login', 'password')
-    book_id = 341
-    book = Book(book_id, session)
-    print(book.title)
-    book.format_to_fb2('bookname.fb2')
-
