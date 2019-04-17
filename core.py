@@ -28,8 +28,8 @@ def load_book(old):
         return old
     return new
 
-def edit_caption(a, message_id, caption):
-    a.editcaption(message_id=message_id, caption=caption, parse_mode='HTML').send()
+def edit_caption(chat_id, message_id, caption):
+    b.editcaption(chat_id=chat_id, message_id=message_id, caption=caption, parse_mode='HTML').send()
 
 @b.message('.+tl\.rulate\.ru\/book\/([0-9]+)')
 @b.message('\/book[_\s]([0-9]+)')
@@ -51,11 +51,11 @@ def download_all_book(a, book):
         try:
             a.answer(text='Starting...').send()
             working.append(chat_id)
-            edit_caption(a, message_id, caption + '<i>Loading chapters...</i>')
+            edit_caption(chat_id, message_id, caption + '<i>Loading chapters...</i>')
             book.load_chapters()
-            edit_caption(a, message_id, caption + '<i>Loading pictures...</i>')
+            edit_caption(chat_id, message_id, caption + '<i>Loading pictures...</i>')
             book.load_pictures()
-            edit_caption(a, message_id, caption + '<i>Converting to fb2...</i>')
+            edit_caption(chat_id, message_id, caption + '<i>Converting to fb2...</i>')
             result = book.format_to_fb2(io=True)
             name = '{}_{}.fb2'.format(book.id, fix_symbols.sub('', book.title).replace('  ', '').replace(' ', '_'))
             if result.getbuffer().nbytes > 50000000:
@@ -65,11 +65,11 @@ def download_all_book(a, book):
                 temp_files[rand_filename] = name
             else:
                 result.name = name
-                edit_caption(a, message_id, caption + '<i>Sending...</i>')
+                edit_caption(chat_id, message_id, caption + '<i>Sending...</i>')
                 b.document(chat_id=chat_id, data={'document': result}, reply_to_message_id=message_id).send()
-                edit_caption(a, message_id, caption)
+                edit_caption(chat_id, message_id, caption)
         except:
-            edit_caption(a, message_id, caption + '<i>Error!!!</i> Write to developer')
+            edit_caption(chat_id, message_id, caption + '<i>Error!!!</i> Write to developer')
         working.remove(chat_id)
     else:
         a.answer(text='Other is loading').send()
