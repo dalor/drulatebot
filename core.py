@@ -58,7 +58,7 @@ def download_all_book(a, book):
             edit_caption(chat_id, message_id, caption + '<i>Converting to fb2...</i>')
             result = book.format_to_fb2(io=True)
             name = '{}_{}.fb2'.format(book.id, fix_symbols.sub('', book.title).replace('  ', '').replace(' ', '_'))
-            if result.getbuffer().nbytes > 20000000:
+            if result.getbuffer().nbytes > 50000000:
                 rand_filename = '{}_{}'.format(a.data['message']['from']['id'], str(random_token()))
                 with open(rand_filename, 'wb') as f:
                     f.write(result.read())
