@@ -63,11 +63,12 @@ def download_all_book(a, book):
                 with open(rand_filename, 'wb') as f:
                     f.write(result.read())
                 temp_files[rand_filename] = name
+                b.msg('This file is so big...\nYou can get it <a href=\"https://drulatebot.herokuapp.com/load/{}\">here</a>'.format(rand_filename), chat_id=chat_id, parse_mode='HTML', reply_to_message_id=message_id).send()
             else:
                 result.name = name
                 edit_caption(chat_id, message_id, caption + '<i>Sending...</i>')
                 b.document(chat_id=chat_id, data={'document': result}, reply_to_message_id=message_id).send()
-                edit_caption(chat_id, message_id, caption)
+            edit_caption(chat_id, message_id, caption)
         except:
             edit_caption(chat_id, message_id, caption + '<i>Error!!!</i> Write to developer')
         working.remove(chat_id)
