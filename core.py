@@ -80,7 +80,7 @@ def download_all_book(a, book):
     else:
         a.answer(text='Other is loading').send()
 
-@b.inline_query('.{3,}')
+@b.inline_query('(.{3,})')
 def search(a):
     result = requests.get('https://tl.rulate.ru/search/autocomplete', params={'query': a.args[1]}).json()
     results = []; i = 0
