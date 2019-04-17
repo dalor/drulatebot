@@ -31,8 +31,8 @@ def load_book(old):
 @load_book
 def load(a, book):
     reply_markup = [[repl.inlinekeyboardbutton('<<Download book>>', callback_data='download_all {}'.format(book.id))]]
-    a.photo(book.base_url + book.img_url,
-    caption='<a href=\"{}\">{}</a>'.format(book.url, book.title),
+    a.photo(book.thumbnail.full_url,
+    caption='<a href=\"{}\">{}</a>'.format(book.full_url, book.title),
     parse_mode='HTML',
     reply_markup=repl.inlinekeyboardmarkup(reply_markup)).send()
 
@@ -44,9 +44,7 @@ def download_all_book(a, book):
         try:
             a.answer(text='Loading book: {}'.format(book.title)).send()
             working.append(chat_id)
-            #print('Start loading book {}'.format(book.title))
             result = book.format_to_fb2(io=True)
-            #print('End loading book {}'.format(book.title))
             result.name = '{}_{}.fb2'.format(book.id, fix_symbols.sub('', book.title).replace('  ', '').replace(' ', '_'))
             b.document(chat_id=chat_id, data={'document': result}).send()
         except:

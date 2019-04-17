@@ -24,7 +24,11 @@ class Picture:
         self.type = 'image/jpeg'
         self.binary = None
         self.hash = None
-        
+    
+    @property
+    def full_url(self):
+        return base_url + self.url if self.url[0] == '/' else self.url
+
     @property
     def name(self):
         return self.url.replace('/', '').replace('.', '_')
@@ -38,7 +42,7 @@ class Picture:
         return base64.b64encode(buffer.getvalue()).decode() #Encode to base64 and return as string
     
     async def load_picture(self, session):
-        async with session.get(base_url + self.url if self.url[0] == '/' else self.url) as resp:
+        async with session.get(self.full_url) as resp:
             self.check_content(await resp.read())
     
     def check_content(self, content):
@@ -64,6 +68,10 @@ class Chapter:
         self.chapters = []
         self.pictures = []
         self.urls = []
+
+    @property
+    def full_url(self):
+        return base_url + self.url
 
     @property
     def content(self):
@@ -115,7 +123,6 @@ class Chapter:
 class Book:
     def __init__(self, id_, session=None):
         self.id = id_
-        self.url = base_url + '/book/{}'.format(id_)
         self.title = None #Название
         self.thumbnail = None #Cсылка на картинку
         self.chapters = [] #Главы
@@ -123,8 +130,12 @@ class Book:
         self.session = session
         self.load_main()
     
+    @property
+    def full_url(self):
+        return base_url + '/book/{}'.format(self.id)
+
     def load_main(self):
-        page = self.get(self.url) #Download page
+        page = self.get(self.full_url) #Download page
         info = parse_page_info.search(page) #Find all info on page
         if info:
             self.title = info['title']
@@ -211,7 +222,7 @@ class Book:
     def fb2_serialize(self):
         self.load_chapters()
         self.load_pictures()
-        book = FB2book(self.title, self.url, self.thumbnail.name)
+        book = FB2book(self.title, self.full_url, self.thumbnail.name)
         for chapter in self.chapters:
             book.add_chapter(chapter)
         for pic in self.pictures:
