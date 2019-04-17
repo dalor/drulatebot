@@ -62,6 +62,7 @@ def download_all_book(a, book):
                 rand_filename = '{}_{}'.format(a.data['message']['from']['id'], random_token())
                 with open(rand_filename, 'wb') as f:
                     f.write(result.read())
+                global temp_files
                 temp_files[rand_filename] = name
                 b.msg('This file is so big...\nYou can get it <a href=\"https://drulatebot.herokuapp.com/load/{}\">here</a>'.format(rand_filename), chat_id=chat_id, parse_mode='HTML', reply_to_message_id=message_id).send()
             else:
@@ -77,7 +78,8 @@ def download_all_book(a, book):
 
 @app.route('/load/<token>')
 def load_by_browser(token):
-    file = temp_files.pop(token)
+    global temp_files
+    file = temp_files.pop(token, None)
     if file:
         return send_file(token, mimetype='text/xml', as_attachment=True, attachment_filename=file)
     else:
