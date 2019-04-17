@@ -1,8 +1,9 @@
-from flask import Flask, request, render_template, redirect
+from flask import Flask, request, send_file
 from dtelbot import Bot, inputmedia as inmed, reply_markup as repl, inlinequeryresult as iqr
 from parser import Book
 import re
 import os
+from uuid import uuid4 as random_token
 
 BOT_ID = os.environ['BOT_ID']
 
@@ -14,6 +15,8 @@ fix_symbols = re.compile('[^0-9A-Za-z\ ]')
 
 working = []
 
+temp_files = {}
+
 def load_book(old):
     def new(a):
         if a.args[1]:
@@ -24,7 +27,9 @@ def load_book(old):
                 a.msg('Can`t load(if book exists write to @dalor_dandy(Will add new features))').send()
         return old
     return new
-        
+
+def edit_caption(a, message_id, caption):
+    a.editcaption(message_id=message_id, caption=caption, parse_mode='HTML').send()
 
 @b.message('.+tl\.rulate\.ru\/book\/([0-9]+)')
 @b.message('\/book[_\s]([0-9]+)')
@@ -41,17 +46,41 @@ def load(a, book):
 def download_all_book(a, book):
     chat_id = a.data['message']['chat']['id']
     if not chat_id in working:
+        message_id = a.data['message']['message_id']
+        caption = '<a href=\"{}\">{}</a>\n'.format(book.full_url, book.title)
         try:
-            a.answer(text='Loading book: {}'.format(book.title)).send()
+            a.answer(text='Starting...').send()
             working.append(chat_id)
+            edit_caption(a, message_id, caption + '<i>Loading chapters...</i>')
+            book.load_chapters()
+            edit_caption(a, message_id, caption + '<i>Loading pictures...</i>')
+            book.load_pictures()
+            edit_caption(a, message_id, caption + '<i>Converting to fb2...</i>')
             result = book.format_to_fb2(io=True)
-            result.name = '{}_{}.fb2'.format(book.id, fix_symbols.sub('', book.title).replace('  ', '').replace(' ', '_'))
-            b.document(chat_id=chat_id, data={'document': result}).send()
+            name = '{}_{}.fb2'.format(book.id, fix_symbols.sub('', book.title).replace('  ', '').replace(' ', '_'))
+            if result.getbuffer().nbytes > 50000000:
+                rand_filename = '{}_{}'.format(a.data['message']['from']['id'], random_token())
+                with open(rand_filename, 'wb') as f:
+                    f.write(result.read())
+                temp_files[rand_filename] = name
+            else:
+                result.name = name
+                edit_caption(a, message_id, caption + '<i>Sending...</i>')
+                b.document(chat_id=chat_id, data={'document': result}, reply_to_message_id=message_id).send()
+                edit_caption(a, message_id, caption)
         except:
-            pass
+            edit_caption(a, message_id, caption + '<i>Error!!!</i> Write to developer')
         working.remove(chat_id)
     else:
         a.answer(text='Other is loading').send()
+
+@app.route('/load/<token>')
+def load_by_browser(token):
+    file = temp_files.pop(token)
+    if file:
+        return send_file(token, mimetype='text/xml', as_attachment=True, attachment_filename=file)
+    else:
+        return 'Not found', 404
 
 @app.route('/{}'.format(BOT_ID), methods=['POST']) #Telegram should be connected to this hook
 def webhook():

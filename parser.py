@@ -220,8 +220,6 @@ class Book:
         return asyncio.new_event_loop().run_until_complete(gget(url))
 
     def fb2_serialize(self):
-        self.load_chapters()
-        self.load_pictures()
         book = FB2book(self.title, self.full_url, self.thumbnail.name)
         for chapter in self.chapters:
             book.add_chapter(chapter)
