@@ -1,9 +1,10 @@
 from flask import Flask, request, send_file
 from dtelbot import Bot, inputmedia as inmed, reply_markup as repl, inlinequeryresult as iqr
-from parser import Book
+from parser import Book, base_url
 import re
 import os
 from uuid import uuid4 as random_token
+import requests
 
 BOT_ID = os.environ['BOT_ID']
 
@@ -41,6 +42,10 @@ def load(a, book):
     parse_mode='HTML',
     reply_markup=repl.inlinekeyboardmarkup(reply_markup)).send()
 
+@b.message('/search')
+def search_button(a):
+    a.msg('Button for search', reply_markup=repl.inlinekeyboardmarkup([[repl.inlinekeyboardbutton('Tap here', switch_inline_query_current_chat='')]])).send()
+
 @b.callback_query('download_all ([0-9]+)')
 @load_book
 def download_all_book(a, book):
@@ -74,6 +79,15 @@ def download_all_book(a, book):
         working.remove(chat_id)
     else:
         a.answer(text='Other is loading').send()
+
+@b.inline_query('.{3,}')
+def search(a):
+    result = requests.get('https://tl.rulate.ru/search/autocomplete', params={'query': a.args[1]}).json()
+    results = []; i = 0
+    for res in result:
+        results.append(iqr(type='article', id=i, title='{} | {}'.format(res['title_one'], res['title_two']), input_message_content={'message_text': base_url + res['url']}, thumb_url=base_url + res['img']))
+        i += 1
+    a.answer(results).send()
 
 @app.route('/load/<token>')
 def load_by_browser(token):
