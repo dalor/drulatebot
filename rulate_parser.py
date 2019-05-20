@@ -238,11 +238,16 @@ class Book:
             return fb2_result
 
 class Session:
-    def __init__(self, login, password):
+    def __init__(self, login, password, session=None):
         self.login = login
         self.password = password
         self.headers = {}
-        self.cookies = {}
+        self.cookies = {'phpsession': session} if session else {}
 
     def set_cookies(self, session):
         self.cookies = {cookie.key:cookie.value for cookie in session.cookie_jar}
+
+    @property
+    def session(self):
+        return self.cookies.get('phpsession')
+
