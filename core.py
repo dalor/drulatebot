@@ -107,7 +107,7 @@ def search(a):
     result = requests.get('https://tl.rulate.ru/search/autocomplete', params={'query': a.args[1]}).json()
     results = []; i = 0
     for res in result:
-        results.append(iarticle(type='article', id=i, title='{} | {}'.format(res['title_one'], res['title_two']), input_message_content={'message_text': base_url + res['url']}, thumb_url=base_url + res['img']))
+        results.append(iarticle(id=i, title='{} | {}'.format(res['title_one'], res['title_two']), input_message_content={'message_text': base_url + res['url']}, thumb_url=base_url + res['img']))
         i += 1
     a.answer(results).send()
 
