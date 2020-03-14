@@ -34,7 +34,8 @@ def load_book(old):
             book = Book(a.args[1], session=get_session(a))
             if book.title:
                 old(a, book)
-                a.session['session'] = book.session.session
+                if book.session:
+                    a.session['session'] = book.session.session
             else:
                 a.msg('Can`t load(if book exists write to @dalor_dandy(Will add new features))').send()
         return old

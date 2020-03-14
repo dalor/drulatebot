@@ -15,7 +15,7 @@ base_url = 'https://tl.rulate.ru'
 
 parse_page_info = re.compile(r'\<h1\>(?P<title>.+)\<\/h1\>\n\<div\sid\=\'Info\'[\s\S]+\<img\ssrc\=\"(?P<img>\/i\/book\/[a-z0-9\/\.]+)\"')
 
-parse_chapters = re.compile(r'\<tr\sid\=\'(c\_|vol\_title\_)(?P<index>[0-9]+)\'[^>]*class\=\'(?P<type>chapter\_row|volume_helper)\s*(?P<volume_to>[^\' ]*)(\s|\s\sinfo)?\'\>\<td(\scolspan\=\'14\'\sonclick\=\'\$\(\".(?P<volume>volume\_[0-9a-z]+)\"\)[^<]+\<strong\>(?P<title>[^<]+)|\>\<\/td\>\<td\sclass\=\'t\'\>\<a\shref\=\'(?P<url>[^\']+)\'\>(?P<name>[^<]+)\<\/a\>)')
+parse_chapters = re.compile(r'\<tr\sid\=\'(c\_|vol\_title\_)(?P<index>[0-9]+)\'[^>]*class\=\'(?P<type>chapter\_row|volume_helper)\s*(?P<volume_to>[^\' ]*)(\s|\s\sinfo)?\'\>(\<td\scolspan\=\'14\'\sonclick\=\'\$\(\".(?P<volume>volume\_[0-9a-z]+)\"\)[^<]+\<strong\>(?P<title>[^<]+)|(\<td\>\<\/td\>|)\<td\sclass\=\'t\'\>\<a\shref\=\'(?P<url>[^\']+)\'\>(?P<name>[^<]+)\<\/a\>)')
 
 class Picture:
     def __init__(self, url, row):
