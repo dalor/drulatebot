@@ -1,6 +1,4 @@
 aiohttp
 pillow
-Flask
+aiogram
 lxml
-requests
-psycopg2-binary
