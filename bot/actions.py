@@ -56,7 +56,10 @@ async def epub_(cq: types.CallbackQuery):
 
     book = Book(id_)
 
-    await cq.answer('Loading book...')
+    try:
+        await cq.answer('Loading book...')
+    except:
+        return
 
     is_loaded = await book.load()
 
