@@ -31,7 +31,8 @@ class Picture:
 
     @property
     def bytes(self) -> bytes:
-        return self.binary.getvalue()
+        if self.binary:
+            return self.binary.getvalue()
 
     @property
     def base64(self) -> str:
@@ -39,8 +40,11 @@ class Picture:
             return base64.b64encode(self.binary.getvalue()).decode()
 
     async def load_picture(self, session: ClientSession) -> None:
-        async with session.get(self.full_url) as resp:
-            self.prepare_content(await resp.read())
+        try:
+            async with session.get(self.full_url) as resp:
+                self.prepare_content(await resp.read())
+        except:
+            pass
 
     def convert(self, binary: bytes) -> BytesIO:
         buffer = BytesIO(binary)  # Load picture from response to buffer
