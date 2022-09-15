@@ -4,3 +4,4 @@ aiogram
 lxml
 EbookLib
 aiogram
+telethon
