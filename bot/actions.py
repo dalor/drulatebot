@@ -1,8 +1,11 @@
+from typing import Callable
+import asyncio
+import re
+from io import BytesIO
+
 from ebooklib import epub
 from rulate_to_epub import book_to_epub
 from rulate_parser import Book
-import re
-from io import BytesIO
 
 from aiogram import Dispatcher, types
 from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -53,6 +56,37 @@ async def book(message: types.Message):
 epub_id = re.compile(r'epub ([0-9]+)')
 
 
+async def load_book(book: Book, progress_callback: Callable, result_callback: Callable) -> str:
+
+    await progress_callback('Loading chapters...')
+
+    await book.load_chapters()
+
+    await progress_callback('Loading pictures...')
+
+    await book.load_pictures()
+
+    await progress_callback('Converting to epub...')
+
+    epub_book = book_to_epub(book)
+    epub_file = BytesIO()
+    epub.write_epub(epub_file, epub_book, {})
+    epub_file.name = '{}_{}.epub'.format(
+        book.id, clear_book_title(book.data.title)
+    )
+
+    epub_file.seek(0)
+
+    async def sending_status(part: int, all: int):
+        await progress_callback(f'Sending... {int(part / all * 100)}%')
+
+    file_id = await sender.send_file(epub_file, progress_callback=sending_status)
+
+    await progress_callback('Success!!!')
+
+    await result_callback(file_id)
+
+
 @dp.callback_query_handler(lambda c: epub_id.match(c.data))
 async def epub_(cq: types.CallbackQuery):
 
@@ -69,37 +103,17 @@ async def epub_(cq: types.CallbackQuery):
 
     if is_loaded:
 
-        book_text = book_to_text(book)
-
         async def status(st: str):
             try:
-                await cq.message.edit_caption(book_text + '\n\n' + st)
+                await cq.message.edit_caption('{}\n\n<i>{}</i>'.format(book_to_text(book), st))
             except:
                 pass
 
-        await status('<i>Loading chapters...</i>')
-        await book.load_chapters()
-
-        await status('<i>Loading pictures...</i>')
-        await book.load_pictures()
-
-        await status('<i>Converting to epub...</i>')
-        epub_book = book_to_epub(book)
-        epub_file = BytesIO()
-        epub.write_epub(epub_file, epub_book, {})
-        epub_file.name = '{}_{}.epub'.format(
-            book.id, clear_book_title(book.data.title)
+        asyncio.ensure_future(
+            load_book(book,
+                      progress_callback=status,
+                      result_callback=cq.message.reply_document)
         )
-
-        epub_file.seek(0)
-
-        async def sending_status(part: int, all: int):
-            await status(f'<i>Sending... {int(part / all * 100)}%</i>')
-
-        file_id = await sender.send_file(epub_file, progress_callback=sending_status)
-        await cq.message.reply_document(file_id)
-
-        await status('<i>Success!!!</i>')
 
     else:
 
