@@ -1,15 +1,19 @@
+from ebooklib import epub
+from rulate_to_epub import book_to_epub
+from rulate_parser import Book
 import re
-from aiogram import Dispatcher, types
-from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from .bot import bot
 from io import BytesIO
 
-from rulate_parser import Book
+from aiogram import Dispatcher, types
+from aiogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 
-from rulate_to_epub import book_to_epub
-from ebooklib import epub
+from .bot import bot
+from.sender import Sender
+
 
 dp = Dispatcher(bot)
+
+sender = Sender(dp)
 
 fix_symbols = re.compile(r'[^0-9A-Za-z\ ]')
 
@@ -68,7 +72,10 @@ async def epub_(cq: types.CallbackQuery):
         book_text = book_to_text(book)
 
         async def status(st: str):
-            await cq.message.edit_caption(book_text + '\n\n' + st)
+            try:
+                await cq.message.edit_caption(book_text + '\n\n' + st)
+            except:
+                pass
 
         await status('<i>Loading chapters...</i>')
         await book.load_chapters()
@@ -84,9 +91,13 @@ async def epub_(cq: types.CallbackQuery):
             book.id, clear_book_title(book.data.title)
         )
 
-        await status('<i>Sending...</i>')
         epub_file.seek(0)
-        await cq.message.reply_document(epub_file)
+
+        async def sending_status(part: int, all: int):
+            await status(f'<i>Sending... {int(part / all * 100)}%</i>')
+
+        file_id = await sender.send_file(epub_file, progress_callback=sending_status)
+        await cq.message.reply_document(file_id)
 
         await status('<i>Success!!!</i>')
 

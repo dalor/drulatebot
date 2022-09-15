@@ -3,3 +3,4 @@ pillow
 aiogram
 lxml
 EbookLib
+aiogram
